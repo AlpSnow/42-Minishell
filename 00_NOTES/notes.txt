@@ -1,0 +1,145 @@
+//-----------------------------------//
+// Pour compiler en utilisant Valgrind :
+//-----------------------------------//
+
+valgrind --leak-check=full --show-leak-kinds=all --suppressions=valgrind.supp --trace-children=yes --track-fds=yes ./minishell
+
+
+
+
+//-----------------------------------//
+// Notes perso :
+//-----------------------------------//
+
+signal(SIGINT, sigint_handler); // gérer CTRL+C
+signal(SIGQUIT, SIG_IGN);       // ignorer CTRL+
+
+
+
+
+//-----------------------------------//
+
+// Codes d’erreur :
+
+//-----------------------------------//
+// Codes d’erreur bash standards :
+// 0	Tout va bien (succès)
+// 1	Erreur générale / erreur d'exécution
+// 2	Mauvais usage d'une commande (ex: syntaxe)
+// 126	Commande trouvée mais non exécutable
+// 127	Commande introuvable
+// 130	Quit via Ctrl+C
+// 131	Quit via Ctrl+(\)
+
+// Codes personnels qui n'interfèrent pas avec bash :
+// 99 Internal error: NULL input to expand_env_variables
+// 98
+// 97
+
+
+
+
+//-----------------------------------//
+
+// PATH invisible (Environnement) :
+
+//-----------------------------------//
+// bash ne "cache" pas vraiment le PATH — mais il le reconstruit dynamiquement dans certains cas.
+
+// Ce qui se passe réellement :
+// Quand tu fais :
+
+// bash
+// Copier
+// Modifier
+// env -i bash --posix
+// Tu lances bash avec un environnement vide, sauf les variables que tu ajoutes manuellement (ici aucune).
+
+// Donc normalement :
+
+// $PATH n’est pas défini dans env
+
+// Mais echo $PATH affiche quand même quelque chose…
+
+// Alors d'où vient ce $PATH ?
+// C’est bash lui-même qui :
+
+// Définit une valeur par défaut de PATH en interne,
+// sans la mettre dans env tant qu'elle n’est pas utilisée dans un exec ou exportée.
+
+
+
+
+//-----------------------------------//
+
+// Bash expansion :
+
+//-----------------------------------//
+// sans quote → expansion autorisée
+
+// en quote simple → expansion interdite
+
+// en quote double → expansion partielle autorisée
+
+
+
+
+//-----------------------------------//
+
+// Que fait bash si un malloc échoue :
+
+//-----------------------------------//
+// Que faire en début de minishell, si un malloc échoue (et qu’on n’a pas encore forké) ?
+// ✅ Tu dois gérer l’erreur proprement, afficher un message clair à l’utilisateur, et quitter le shell sans crash.
+
+// 🔍 Dans un vrai Bash ?
+// Quand un échec critique se produit avant l’exécution de la commande (ex: mémoire insuffisante pour parser ou préparer la commande), 
+Bash n’exécute rien, il peut afficher une erreur, puis redonne la main à l’utilisateur.
+// Bash ne travail pas avec un environement instable.
+
+// Mais Bash étant ultra robuste, ces erreurs sont rares.
+
+// ✅ Que faire dans ces cas-là ?
+// Afficher une erreur explicite sur stderr
+
+// Libérer ce qui est déjà alloué
+
+// Quitter proprement le shell
+
+
+
+
+//-----------------------------------//
+
+// Ordre des opérations de Bash :
+
+//-----------------------------------//
+// 🔄 Ordre des opérations de Bash (simplifié)
+// Quand tu tapes une commande, Bash suit plusieurs étapes dans un ordre très précis, notamment :
+
+// Tokenization (lexing) → séparation de la commande en segments (mots, opérateurs…).
+
+// Expansion (ordre précis ci-dessous 👇).
+
+// Syntax checking.
+
+// Redirections, pipes, etc.
+
+// Execution.
+
+// 🔍 Étapes internes à l'expansion (ordre important)
+// D’après la spec POSIX et le comportement observé de Bash, voici l'ordre des expansions :
+
+// Brace expansion (ex: {a,b} → a b) → (rarement implémenté sauf si demandé).
+
+// Tilde expansion (ex: ~ → /home/user)
+
+// Parameter expansion → c’est ici que $USER, $?, etc. sont gérés ✅
+
+// Command substitution (ex: `whoami` ou $(whoami))
+
+// Arithmetic expansion (ex: $((1 + 2)))
+
+// Word splitting (en fonction de IFS)
+
+// Pathname expansion (wildcards/globbing: *, ?, etc.)
